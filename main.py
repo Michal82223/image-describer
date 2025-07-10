@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import base64
@@ -32,16 +32,8 @@ async def describe_image(file: UploadFile = File(...)):
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "Opisz dokładnie co znajduje się na tym zdjęciu. Bądź szczegółowy.",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{b64_image}"
-                        },
-                    },
+                    {"type": "text", "text": "Opisz dokładnie co znajduje się na tym zdjęciu."},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}}
                 ],
             }
         ],
@@ -49,5 +41,15 @@ async def describe_image(file: UploadFile = File(...)):
     }
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=body)
-    data = response.json()
+
+    try:
+        data = response.json()
+    except Exception:
+        print("❌ Błąd dekodowania JSON:", response.text)
+        raise HTTPException(status_code=500, detail="Błąd OpenAI: nieprawidłowy JSON")
+
+    if "choices" not in data:
+        print("❌ Błąd OpenAI:", data)
+        raise HTTPException(status_code=500, detail=f"Błąd OpenAI: {data.get('error', {}).get('message', 'Nieznany')}")
+
     return {"description": data["choices"][0]["message"]["content"]}
