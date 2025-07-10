@@ -7,4 +7,4 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: OPENAI_API_KEY
-        sync: false  # uzupełnisz ręcznie w Render dashboard
+        sync: false
