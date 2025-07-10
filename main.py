@@ -1,36 +1,53 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from transformers import pipeline
-from PIL import Image
-import io
-import gc
+import requests
+import base64
+import os
 
 app = FastAPI()
 
-# 🔒 Zezwól na połączenia z aplikacji mobilnej (wszystkie źródła w dev)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # lub ogranicz do domeny frontu
+    allow_origins=["*"],  # zmień na swój frontend w razie potrzeby
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Lekki model do opisu obrazów
-captioner = pipeline("image-to-text", model="nlpconnect/vit-gpt2-image-captioning")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 @app.post("/describe")
 async def describe_image(file: UploadFile = File(...)):
-    contents = await file.read()
+    image_bytes = await file.read()
+    b64_image = base64.b64encode(image_bytes).decode("utf-8")
 
-    try:
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
-        image = image.resize((224, 224))  # 🔧 zmniejszamy obraz
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
-        result = captioner(image)
-        gc.collect()  # 🧹 czyścimy pamięć
+    body = {
+        "model": "gpt-4-vision-preview",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Opisz dokładnie co znajduje się na tym zdjęciu. Bądź szczegółowy.",
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{b64_image}"
+                        },
+                    },
+                ],
+            }
+        ],
+        "max_tokens": 500,
+    }
 
-        return {"description": result[0]["generated_text"]}
-
-    except Exception as e:
-        return {"error": str(e)}
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=body)
+    data = response.json()
+    return {"description": data["choices"][0]["message"]["content"]}
