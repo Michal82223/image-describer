@@ -27,7 +27,7 @@ async def describe_image(file: UploadFile = File(...)):
     }
 
     body = {
-        "model": "gpt-4-vision-preview",
+        "model": "gpt-4o",
         "messages": [
             {
                 "role": "user",
